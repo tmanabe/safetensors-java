@@ -4,9 +4,13 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -24,7 +28,7 @@ public class Safetensors {
     public static class HeaderValue {
         private final String dtype;
         private final List<Integer> shape;
-        private final AbstractMap.SimpleEntry<Integer, Integer> dataOffsets;
+        private final Map.Entry<Integer, Integer> dataOffsets;
 
         private static HeaderValue load(Map<?, ?> map) {
             assert map.containsKey("dtype");
@@ -53,10 +57,26 @@ public class Safetensors {
             return new HeaderValue(dtype, shape, dataOffsets);
         }
 
-        private HeaderValue(String dtype, List<Integer> shape, AbstractMap.SimpleEntry<Integer, Integer> dataOffsets) {
+        HeaderValue(String dtype, List<Integer> shape, Map.Entry<Integer, Integer> dataOffsets) {
             this.dtype = dtype;
             this.shape = shape;
             this.dataOffsets = dataOffsets;
+        }
+
+        private String save() {
+            StringBuilder shapeBuilder = new StringBuilder();
+            shapeBuilder.append('[');
+            if (!shape.isEmpty()) {
+                for (int i : shape) {
+                    shapeBuilder.append(i);
+                    shapeBuilder.append(',');
+                }
+                shapeBuilder.deleteCharAt(shapeBuilder.length() - 1);
+            }
+            shapeBuilder.append(']');
+
+            String result = "{'dtype':'%s','shape':%s,'data_offsets':[%d,%d]}".replaceAll("'", "\"");
+            return String.format(result, dtype, shapeBuilder, dataOffsets.getKey(), dataOffsets.getValue());
         }
 
         public String getDtype() {
@@ -67,7 +87,7 @@ public class Safetensors {
             return shape;
         }
 
-        public AbstractMap.SimpleEntry<Integer, Integer> getDataOffsets() {
+        public Map.Entry<Integer, Integer> getDataOffsets() {
             return dataOffsets;
         }
     }
@@ -134,7 +154,54 @@ public class Safetensors {
         return new Safetensors(header, byteBuffer);
     }
 
-    private Safetensors(Map<String, HeaderValue> header, ByteBuffer byteBuffer) {
+    public void save(File file) throws IOException {
+        DataOutputStream dataOutputStream;
+        {
+            FileOutputStream fileOutputStream;
+            try {
+                fileOutputStream = new FileOutputStream(file);
+            } catch (FileNotFoundException e) {
+                throw new IOException(e);
+            }
+            BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOutputStream);
+            dataOutputStream = new DataOutputStream(bufferedOutputStream);
+        }
+
+        StringBuilder headerBuilder = new StringBuilder();
+        headerBuilder.append('{');
+        if (!header.isEmpty()) {
+            for (Map.Entry<String, HeaderValue> entry : header.entrySet()) {
+                headerBuilder.append('"');
+                headerBuilder.append(entry.getKey());
+                headerBuilder.append('"');
+                headerBuilder.append(':');
+                headerBuilder.append(entry.getValue().save());
+                headerBuilder.append(',');
+            }
+            headerBuilder.deleteCharAt(headerBuilder.length() - 1);
+        }
+        headerBuilder.append('}');
+
+        String stringHeader = headerBuilder.toString();
+        int padding = 8 - (stringHeader.getBytes(StandardCharsets.UTF_8).length % 8);
+        for (int i = 0; i < padding; ++i) {
+            headerBuilder.append(' ');
+        }
+        stringHeader = headerBuilder.toString();
+
+        {
+            byte[] littleEndianBytesHeaderSize = new byte[8];
+            long headerSize = stringHeader.getBytes(StandardCharsets.UTF_8).length;
+            ByteBuffer.wrap(littleEndianBytesHeaderSize).order(ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(headerSize);
+            dataOutputStream.write(littleEndianBytesHeaderSize);
+        }
+
+        dataOutputStream.writeBytes(stringHeader);
+        dataOutputStream.write(byteBuffer.array());
+        dataOutputStream.close();
+    }
+
+    Safetensors(Map<String, HeaderValue> header, ByteBuffer byteBuffer) {
         this.header = header;
         this.byteBuffer = byteBuffer;
     }

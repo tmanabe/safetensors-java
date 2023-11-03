@@ -1,54 +1,81 @@
 import io.github.tmanabe.Safetensors;
+import io.github.tmanabe.SafetensorsBuilder;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.FloatBuffer;
 import java.nio.LongBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 public class SafetensorsTest {
-    @Test
-    public void testLoad() throws IOException {
-        URL sampleURL = this.getClass().getResource("sample.safetensors");
-        assert null != sampleURL;
-        String sampleString = sampleURL.getFile();
-        Safetensors sample = Safetensors.load(new File(sampleString));
+    public void assertBasic(Safetensors sample) {
         {
             String tensorName = "some_ints";
             {
                 List<Integer> shape = sample.getHeader().get(tensorName).getShape();
-                assert 2 == shape.size();
-                assert 1 == shape.get(0);
-                assert 4 == shape.get(1);
+                assert shape.equals(Arrays.asList(1, 4));
             }
             {
                 LongBuffer longBuffer = sample.getLongBuffer(tensorName);
-                assert 4 == longBuffer.limit();
-                assert -1L == longBuffer.get(0);
-                assert 0L == longBuffer.get(1);
-                assert 1L == longBuffer.get(2);
-                assert 2L == longBuffer.get(3);
+                long[] longs = new long[longBuffer.limit()];
+                longBuffer.get(longs);
+                assert Arrays.equals(longs, new long[] {-1L, 0L, 1L, 2L});
             }
         }
         {
             String tensorName = "some_floats";
             {
                 List<Integer> shape = sample.getHeader().get(tensorName).getShape();
-                assert 3 == shape.size();
-                assert 1 == shape.get(0);
-                assert 2 == shape.get(1);
-                assert 2 == shape.get(2);
+                assert shape.equals(Arrays.asList(1, 2, 2));
             }
             {
                 FloatBuffer floatBuffer = sample.getFloatBuffer(tensorName);
-                assert 4 == floatBuffer.limit();
-                assert -1.0f == floatBuffer.get(0);
-                assert 0.0f == floatBuffer.get(1);
-                assert 1.0f == floatBuffer.get(2);
-                assert 2.0f == floatBuffer.get(3);
+                float[] floats = new float[floatBuffer.limit()];
+                floatBuffer.get(floats);
+                assert Arrays.equals(floats, new float[] {-1.0f, 0.0f, 1.0f, 2.0f});
             }
+        }
+    }
+
+    @Test
+    public void testLoad() throws IOException {
+        URL url = this.getClass().getResource("sample.safetensors");
+        assert null != url;
+        File file = new File(url.getFile());
+        Safetensors sample = Safetensors.load(file);
+        assertBasic(sample);
+    }
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void testBuildSaveAndLoad() throws IOException {
+        File file = temporaryFolder.newFile("subject.safetensors");
+        {
+            SafetensorsBuilder safetensorsBuilder = new SafetensorsBuilder();
+            {
+                List<Integer> shape = Arrays.asList(1, 4);
+                long[] longs = new long[]{-1L, 0L, 1L, 2L};
+                safetensorsBuilder.add("some_ints", shape, longs);
+            }
+            {
+                List<Integer> shape = Arrays.asList(1, 2, 2);
+                float[] floats = new float[]{-1.0f, 0.0f, 1.0f, 2.0f};
+                safetensorsBuilder.add("some_floats", shape, floats);
+            }
+            Safetensors subject = safetensorsBuilder.build();
+            assertBasic(subject);
+            subject.save(file);
+        }
+        {
+            Safetensors subject = Safetensors.load(file);
+            assertBasic(subject);
         }
     }
 }
