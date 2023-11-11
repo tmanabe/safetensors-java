@@ -2,6 +2,7 @@ package io.github.tmanabe;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +53,10 @@ public class SafetensorsBuilder {
         Safetensors.HeaderValue headerValue = new Safetensors.HeaderValue("F32", shape, dataOffsets);
         header.put(tensorName, headerValue);
         bodies.put(tensorName, floats);
+    }
+
+    public int contentLength() {
+        return Long.BYTES + Safetensors.save(header).getBytes(StandardCharsets.UTF_8).length + byteSize;
     }
 
     public Safetensors build() {

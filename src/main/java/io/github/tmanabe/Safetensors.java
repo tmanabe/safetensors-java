@@ -102,7 +102,12 @@ public class Safetensors {
             BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream);
             dataInputStream = new DataInputStream(bufferedInputStream);
         }
+        Safetensors safetensors = load(dataInputStream);
+        dataInputStream.close();
+        return safetensors;
+    }
 
+    public static Safetensors load(DataInputStream dataInputStream) throws IOException {
         long headerSize;
         {
             byte[] littleEndianBytesHeaderSize = new byte[8];
@@ -145,12 +150,16 @@ public class Safetensors {
         ByteBuffer byteBuffer;
         {
             byte[] bytes = new byte[byteBufferSize];
-            int read = dataInputStream.read(bytes);
-            assert byteBufferSize == read;
+            int read = 0, total = 0;
+            while(0 <= read){
+                read = dataInputStream.read(bytes, total, bytes.length - total);
+                total += read;
+                if (bytes.length == total) break;
+            }
+            assert byteBufferSize == total;
             byteBuffer = ByteBuffer.wrap(bytes);
         }
 
-        dataInputStream.close();
         return new Safetensors(header, byteBuffer);
     }
 
@@ -166,7 +175,11 @@ public class Safetensors {
             BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOutputStream);
             dataOutputStream = new DataOutputStream(bufferedOutputStream);
         }
+        save(dataOutputStream);
+        dataOutputStream.close();
+    }
 
+    static String save(Map<String, HeaderValue> header) {
         StringBuilder headerBuilder = new StringBuilder();
         headerBuilder.append('{');
         if (!header.isEmpty()) {
@@ -187,10 +200,13 @@ public class Safetensors {
         for (int i = 0; i < padding; ++i) {
             headerBuilder.append(' ');
         }
-        stringHeader = headerBuilder.toString();
+        return headerBuilder.toString();
+    }
 
+    public void save(DataOutputStream dataOutputStream) throws IOException {
+        String stringHeader = save(header);
         {
-            byte[] littleEndianBytesHeaderSize = new byte[8];
+            byte[] littleEndianBytesHeaderSize = new byte[Long.BYTES];
             long headerSize = stringHeader.getBytes(StandardCharsets.UTF_8).length;
             ByteBuffer.wrap(littleEndianBytesHeaderSize).order(ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(headerSize);
             dataOutputStream.write(littleEndianBytesHeaderSize);
@@ -198,7 +214,6 @@ public class Safetensors {
 
         dataOutputStream.writeBytes(stringHeader);
         dataOutputStream.write(byteBuffer.array());
-        dataOutputStream.close();
     }
 
     Safetensors(Map<String, HeaderValue> header, ByteBuffer byteBuffer) {
