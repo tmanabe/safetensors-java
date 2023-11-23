@@ -1,8 +1,8 @@
 package io.github.tmanabe;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -21,6 +21,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -30,30 +31,31 @@ public class Safetensors {
         private final List<Integer> shape;
         private final Map.Entry<Integer, Integer> dataOffsets;
 
-        private static HeaderValue load(Map<?, ?> map) {
-            assert map.containsKey("dtype");
-            String dtype = map.get("dtype").toString();
+        private static HeaderValue load(JsonNode jsonNode) {
+            assert jsonNode.has("dtype");
+            String dtype = jsonNode.get("dtype").asText();
 
-            assert map.containsKey("shape");
+            assert jsonNode.has("shape");
             List<Integer> shape = new ArrayList<>();
             {
-                Map<?, ?> m = (Map<?, ?>) map.get("shape");
-                for (int i = 0; i < m.size(); ++i) {
-                    assert m.containsKey(Integer.toString(i));
-                    shape.add((Integer) m.get(Integer.toString(i)));
+                JsonNode jsonNodeShape = jsonNode.get("shape");
+                assert jsonNodeShape.isArray();
+                for (int i = 0; i < jsonNodeShape.size(); ++i) {
+                    shape.add(jsonNodeShape.get(i).asInt());
                 }
             }
 
-            assert map.containsKey("data_offsets");
+            assert jsonNode.has("data_offsets");
             AbstractMap.SimpleEntry<Integer, Integer> dataOffsets;
             {
-                Map<?, ?> m = (Map<?, ?>) map.get("data_offsets");
-                assert 2 == m.size() && m.containsKey("0") && m.containsKey("1");
-                Integer begin = (Integer) m.get("0"), end = (Integer) m.get("1");
+                JsonNode jsonNodeDataOffsets = jsonNode.get("data_offsets");
+                assert jsonNodeDataOffsets.isArray();
+                assert 2 == jsonNodeDataOffsets.size();
+                Integer begin = jsonNodeDataOffsets.get(0).asInt(), end = jsonNodeDataOffsets.get(1).asInt();
                 dataOffsets = new AbstractMap.SimpleEntry<>(begin, end);
             }
 
-            assert 3 == map.size();
+            assert 3 == jsonNode.size();
             return new HeaderValue(dtype, shape, dataOffsets);
         }
 
@@ -125,21 +127,15 @@ public class Safetensors {
             stringHeader = new String(bytesHeader, StandardCharsets.UTF_8);
         }
 
-        Object objectHeader;
-        try {
-            ScriptEngineManager scriptEngineManager = new ScriptEngineManager();
-            ScriptEngine scriptEngine = scriptEngineManager.getEngineByName("JavaScript");
-            objectHeader = scriptEngine.eval("var varHeader = " + stringHeader + "; varHeader;");
-        } catch (ScriptException e) {
-            throw new IOException(e);
-        }
-
+        JsonNode jsonNodeHeader = new ObjectMapper().readTree(stringHeader);
         Map<String, HeaderValue> header = new HashMap<>();
-        for (Map.Entry<?, ?> entry : ((Map<?, ?>) objectHeader).entrySet()) {
-            String tensorName = entry.getKey().toString();
+        Iterator<Map.Entry<String, JsonNode>> iterator = jsonNodeHeader.fields();
+        while (iterator.hasNext()) {
+            Map.Entry<String, JsonNode> entry = iterator.next();
+            String tensorName = entry.getKey();
             if (tensorName.equals("__metadata__")) continue;
-            Map<?, ?> map = (Map<?, ?>) entry.getValue();
-            header.put(tensorName, HeaderValue.load(map));
+            JsonNode jsonNode = entry.getValue();
+            header.put(tensorName, HeaderValue.load(jsonNode));
         }
 
         int byteBufferSize = 0;
