@@ -8,6 +8,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.nio.LongBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.HashMap;
@@ -71,6 +73,20 @@ public class SafetensorsBuilder {
         bodies.put(tensorName, longs);
     }
 
+    public void add(String tensorName, List<Integer> shape, LongBuffer longBuffer) {
+        checkLength(shape, longBuffer.limit());
+        Map.Entry<Integer, Integer> dataOffsets;
+        {
+            int begin = byteSize;
+            byteSize += Long.BYTES * (longBuffer.limit() - longBuffer.position());
+            int end = byteSize;
+            dataOffsets = new AbstractMap.SimpleEntry<>(begin, end);
+        }
+        HeaderValue headerValue = new HeaderValue("I64", shape, dataOffsets);
+        header.put(tensorName, headerValue);
+        bodies.put(tensorName, longBuffer);
+    }
+
     public void add(String tensorName, List<Integer> shape, float[] floats) {
         checkLength(shape, floats.length);
         Map.Entry<Integer, Integer> dataOffsets;
@@ -83,6 +99,20 @@ public class SafetensorsBuilder {
         HeaderValue headerValue = new HeaderValue("F32", shape, dataOffsets);
         header.put(tensorName, headerValue);
         bodies.put(tensorName, floats);
+    }
+
+    public void add(String tensorName, List<Integer> shape, FloatBuffer floatBuffer) {
+        checkLength(shape, floatBuffer.limit());
+        Map.Entry<Integer, Integer> dataOffsets;
+        {
+            int begin = byteSize;
+            byteSize += Float.BYTES * (floatBuffer.limit() - floatBuffer.position());
+            int end = byteSize;
+            dataOffsets = new AbstractMap.SimpleEntry<>(begin, end);
+        }
+        HeaderValue headerValue = new HeaderValue("F32", shape, dataOffsets);
+        header.put(tensorName, headerValue);
+        bodies.put(tensorName, floatBuffer);
     }
 
     public int contentLength() {
@@ -127,8 +157,16 @@ public class SafetensorsBuilder {
                 bb.asLongBuffer().put((long[]) object);
                 continue;
             }
+            if (object instanceof LongBuffer) {
+                bb.asLongBuffer().put((LongBuffer) object);
+                continue;
+            }
             if (object instanceof float[]) {
                 bb.asFloatBuffer().put((float[]) object);
+                continue;
+            }
+            if (object instanceof FloatBuffer) {
+                bb.asFloatBuffer().put((FloatBuffer) object);
                 continue;
             }
             throw new IllegalArgumentException("Unsupported type: " + object.getClass().getTypeName());

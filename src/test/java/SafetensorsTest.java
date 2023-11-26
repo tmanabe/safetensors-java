@@ -7,6 +7,8 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
@@ -68,6 +70,49 @@ public class SafetensorsTest {
                 List<Integer> shape = Arrays.asList(1, 2, 2);
                 float[] floats = new float[]{-1.0f, 0.0f, 1.0f, 2.0f};
                 safetensorsBuilder.add("some_floats", shape, floats);
+            }
+            safetensorsBuilder.save(file);
+        }
+        {
+            SafetensorsViewer subject = SafetensorsViewer.load(file);
+            assertBasic(subject);
+        }
+    }
+
+    @Test
+    public void testBuildBuffersSaveAndLoad() throws IOException {
+        File file = temporaryFolder.newFile("subject.safetensors");
+        {
+            SafetensorsBuilder safetensorsBuilder = new SafetensorsBuilder();
+            {
+                List<Integer> shape = Arrays.asList(1, 4);
+                LongBuffer longBuffer;
+                {
+                    byte[] bytes = new byte[Long.BYTES * 4];
+                    longBuffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
+                    longBuffer.put(-1L);
+                    longBuffer.put(0L);
+                    longBuffer.put(1L);
+                    longBuffer.put(2L);
+                }
+                assert !longBuffer.hasArray();  // longBuffer.array() is not available
+                longBuffer.rewind();
+                safetensorsBuilder.add("some_ints", shape, longBuffer);
+            }
+            {
+                List<Integer> shape = Arrays.asList(1, 2, 2);
+                FloatBuffer floatBuffer;
+                {
+                    byte[] bytes = new byte[Float.BYTES * 4];
+                    floatBuffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+                    floatBuffer.put(-1.0f);
+                    floatBuffer.put(0.0f);
+                    floatBuffer.put(1.0f);
+                    floatBuffer.put(2.0f);
+                }
+                assert !floatBuffer.hasArray();  // floatBuffer.array() is not available
+                floatBuffer.rewind();
+                safetensorsBuilder.add("some_floats", shape, floatBuffer);
             }
             safetensorsBuilder.save(file);
         }

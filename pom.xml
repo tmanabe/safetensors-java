@@ -6,7 +6,7 @@
 
     <groupId>io.github.tmanabe</groupId>
     <artifactId>safetensors-java</artifactId>
-    <version>0.7.0-SNAPSHOT</version>
+    <version>0.9.0-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
