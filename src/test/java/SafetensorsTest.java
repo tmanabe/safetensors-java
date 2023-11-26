@@ -1,4 +1,4 @@
-import io.github.tmanabe.Safetensors;
+import io.github.tmanabe.SafetensorsViewer;
 import io.github.tmanabe.SafetensorsBuilder;
 import org.junit.Rule;
 import org.junit.Test;
@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class SafetensorsTest {
-    public void assertBasic(Safetensors sample) {
+    public void assertBasic(SafetensorsViewer sample) {
         {
             String tensorName = "some_ints";
             {
@@ -47,7 +47,7 @@ public class SafetensorsTest {
         URL url = this.getClass().getResource("sample.safetensors");
         assert null != url;
         File file = new File(url.getFile());
-        Safetensors sample = Safetensors.load(file);
+        SafetensorsViewer sample = SafetensorsViewer.load(file);
         assertBasic(sample);
     }
 
@@ -69,12 +69,10 @@ public class SafetensorsTest {
                 float[] floats = new float[]{-1.0f, 0.0f, 1.0f, 2.0f};
                 safetensorsBuilder.add("some_floats", shape, floats);
             }
-            Safetensors subject = safetensorsBuilder.build();
-            assertBasic(subject);
-            subject.save(file);
+            safetensorsBuilder.save(file);
         }
         {
-            Safetensors subject = Safetensors.load(file);
+            SafetensorsViewer subject = SafetensorsViewer.load(file);
             assertBasic(subject);
         }
     }

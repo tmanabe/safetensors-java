@@ -18,7 +18,7 @@ save_file(tensors, "sample.safetensors")
 ```
 
 ```java
-Safetensors sample = Safetensors.load(new File("sample.safetensors"));
+Safetensors sample = SafetensorsViewer.load(new File("sample.safetensors"));
 {
     String tensorName = "some_ints";
     {
