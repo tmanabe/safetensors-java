@@ -62,8 +62,7 @@ Safetensors sample = SafetensorsViewer.load(new File("sample.safetensors"));
         float[] floats = new float[]{-1.0f, 0.0f, 1.0f, 2.0f};
         safetensorsBuilder.add("some_floats", shape, floats);
     }
-    Safetensors subject = safetensorsBuilder.build();
-    subject.save(new File("subject.safetensors"));
+    safetensorsBuilder.save(new File("subject.safetensors"));
 }
 ```
 
